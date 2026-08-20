@@ -1,0 +1,61 @@
+:root {
+  font-family: system-ui, sans-serif;
+  background: #f5f7fa;
+  color: #17202a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.shell,
+.error-page {
+  width: min(760px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 3rem 0;
+}
+
+header {
+  margin-bottom: 1.5rem;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+.card,
+.status {
+  border: 1px solid #dce3ea;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: #fff;
+}
+
+.status {
+  display: flex;
+  gap: 0.5rem;
+  width: fit-content;
+  margin-top: 1rem;
+}
+
+.status-ok {
+  color: #08775f;
+}
+
+.status-error {
+  color: #a12622;
+}
+
+.status-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-top: 0.3rem;
+  border-radius: 50%;
+  background: #13a382;
+}

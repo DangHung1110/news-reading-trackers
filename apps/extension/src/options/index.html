@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>News Reading Tracker settings</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">News Reading Tracker</p>
+      <h1>Extension settings</h1>
+      <form id="settings-form">
+        <label for="api-url">Central API URL</label>
+        <input id="api-url" name="api-url" type="url" required />
+        <button type="submit">Save settings</button>
+        <output id="save-status" aria-live="polite"></output>
+      </form>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
