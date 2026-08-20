@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "News Reading Activity Tracker",
+  "description": "Tracks active reading time on supported Vietnamese news sites.",
+  "version": "0.1.0",
+  "permissions": ["tabs", "storage", "idle", "alarms"],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://vnexpress.net/*",
+    "https://dantri.com.vn/*",
+    "https://tuoitre.vn/*"
+  ],
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://vnexpress.net/*", "https://dantri.com.vn/*", "https://tuoitre.vn/*"],
+      "js": ["assets/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/index.html",
+    "default_title": "News reading tracker"
+  },
+  "options_page": "src/options/index.html"
+}

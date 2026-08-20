@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ExtractionStatus {
+  PENDING
+  EXTRACTED
+  FAILED
+}
+
+enum ReadingSessionStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum ReadingEventType {
+  PAGE_ENTER
+  PAGE_ACTIVE
+  PAGE_INACTIVE
+  PAGE_LEAVE
+  PAGE_HEARTBEAT
+}
+
+model SiteConfig {
+  id                 String   @id @default(cuid())
+  domain             String   @unique
+  enabled            Boolean  @default(true)
+  articleUrlPatterns Json
+  titleSelectors     Json
+  contentSelectors   Json
+  removeSelectors    Json
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([enabled])
+}
+
+model Article {
+  id               String              @id @default(cuid())
+  canonicalUrl     String              @unique
+  domain           String
+  title            String
+  content          String              @db.Text
+  contentHash      String
+  wordCount        Int
+  summary          String?             @db.Text
+  category         String?
+  extractionStatus ExtractionStatus    @default(PENDING)
+  firstCollectedAt DateTime            @default(now())
+  lastCollectedAt  DateTime            @default(now())
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  readingSessions  ReadingSession[]
+
+  @@index([domain])
+  @@index([lastCollectedAt])
+  @@index([extractionStatus])
+}
+
+model ReadingSession {
+  id              String               @id @default(cuid())
+  sessionId       String               @unique
+  browserId       String
+  tabId           Int
+  articleId       String
+  startedAt       DateTime
+  endedAt         DateTime?
+  activeReadingMs Int                  @default(0)
+  status          ReadingSessionStatus @default(ACTIVE)
+  lastEventAt     DateTime
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  article         Article              @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  events          ReadingEvent[]       @relation("SessionEvents")
+
+  @@index([articleId])
+  @@index([browserId])
+  @@index([startedAt])
+  @@index([status])
+}
+
+model ReadingEvent {
+  id             String          @id @default(cuid())
+  eventId        String          @unique
+  sessionId      String
+  eventType      ReadingEventType
+  sequenceNumber Int
+  occurredAt     DateTime
+  receivedAt     DateTime        @default(now())
+  url            String
+  domain         String
+  title          String
+  payload        Json
+  createdAt      DateTime        @default(now())
+  session        ReadingSession  @relation("SessionEvents", fields: [sessionId], references: [sessionId], onDelete: Cascade)
+
+  @@unique([sessionId, sequenceNumber])
+  @@index([sessionId])
+  @@index([occurredAt])
+  @@index([domain])
+  @@index([eventType])
+}

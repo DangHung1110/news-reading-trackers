@@ -1,0 +1,45 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #ecf9f5;
+  background: #081522;
+}
+
+body {
+  width: 320px;
+  margin: 0;
+}
+
+main {
+  padding: 1.25rem;
+}
+
+h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.5rem;
+}
+
+p {
+  color: #afc4d6;
+  line-height: 1.5;
+}
+
+.eyebrow {
+  margin: 0 0 0.4rem;
+  color: #68dfc4;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+button {
+  width: 100%;
+  border: 0;
+  border-radius: 0.55rem;
+  padding: 0.7rem;
+  background: #2bd0ad;
+  color: #041914;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
