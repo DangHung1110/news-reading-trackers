@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "vite build --watch --mode development",
     "build": "vite build",
-    "lint": "eslint src vite.config.ts --max-warnings=0",
+    "lint": "eslint src vite.config.ts vitest.config.ts --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
     "@news-tracker/contracts": "workspace:*"
@@ -16,6 +16,7 @@
     "@news-tracker/typescript-config": "workspace:*",
     "@types/chrome": "^0.1.36",
     "@types/node": "^22.19.3",
+    "jsdom": "^27.4.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"
