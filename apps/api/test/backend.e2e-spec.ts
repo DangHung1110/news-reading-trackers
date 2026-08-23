@@ -17,6 +17,8 @@ describe('Backend data API', () => {
   const runId = randomUUID();
   const enterEventId = randomUUID();
   const activeEventId = randomUUID();
+  const inactiveEventId = randomUUID();
+  const secondActiveEventId = randomUUID();
   const leaveEventId = randomUUID();
   const invalidEventId = 'invalid-uuid';
   const sessionId = randomUUID();
@@ -41,7 +43,11 @@ describe('Backend data API', () => {
 
   afterAll(async () => {
     await prisma.readingEvent.deleteMany({
-      where: { eventId: { in: [enterEventId, activeEventId, leaveEventId] } },
+      where: {
+        eventId: {
+          in: [enterEventId, activeEventId, inactiveEventId, secondActiveEventId, leaveEventId],
+        },
+      },
     });
     await prisma.readingSession.deleteMany({ where: { sessionId } });
     await prisma.article.deleteMany({ where: { canonicalUrl } });
@@ -114,7 +120,7 @@ describe('Backend data API', () => {
     expect(await prisma.readingEvent.count({ where: { eventId: enterEventId } })).toBe(1);
   });
 
-  it('closes the session on PAGE_LEAVE and exposes query/detail endpoints', async () => {
+  it('recalculates multiple active intervals when events arrive late', async () => {
     await request(app.getHttpServer() as SupertestApp)
       .post('/api/events')
       .send({
@@ -141,11 +147,53 @@ describe('Backend data API', () => {
       .send({
         events: [
           {
+            eventId: secondActiveEventId,
+            eventType: 'PAGE_ACTIVE',
+            sessionId,
+            sequenceNumber: 3,
+            occurredAt: new Date(startedAt.getTime() + 4000).toISOString(),
+            url: rawUrl,
+            domain: 'vnexpress.net',
+            title: 'Bài viết integration test',
+            browserId,
+            tabId: 7,
+            context: { visible: true },
+          },
+        ],
+      })
+      .expect(201);
+
+    await request(app.getHttpServer() as SupertestApp)
+      .post('/api/events')
+      .send({
+        events: [
+          {
+            eventId: inactiveEventId,
+            eventType: 'PAGE_INACTIVE',
+            sessionId,
+            sequenceNumber: 2,
+            occurredAt: new Date(startedAt.getTime() + 3000).toISOString(),
+            url: rawUrl,
+            domain: 'vnexpress.net',
+            title: 'Bài viết integration test',
+            browserId,
+            tabId: 7,
+            context: { visible: false },
+          },
+        ],
+      })
+      .expect(201);
+
+    await request(app.getHttpServer() as SupertestApp)
+      .post('/api/events')
+      .send({
+        events: [
+          {
             eventId: leaveEventId,
             eventType: 'PAGE_LEAVE',
             sessionId,
-            sequenceNumber: 2,
-            occurredAt: new Date(startedAt.getTime() + 5000).toISOString(),
+            sequenceNumber: 4,
+            occurredAt: new Date(startedAt.getTime() + 7000).toISOString(),
             url: rawUrl,
             domain: 'vnexpress.net',
             title: 'Bài viết integration test',
@@ -160,7 +208,8 @@ describe('Backend data API', () => {
     const session = await prisma.readingSession.findUniqueOrThrow({ where: { sessionId } });
     expect(session.status).toBe(ReadingSessionStatus.COMPLETED);
     expect(session.endedAt).not.toBeNull();
-    expect(await app.get(SessionsService).recalculateActiveReadingMs(sessionId)).toBe(4000);
+    expect(session.activeReadingMs).toBe(5000);
+    expect(await app.get(SessionsService).recalculateActiveReadingMs(sessionId)).toBe(5000);
 
     const article = await prisma.article.findUniqueOrThrow({ where: { canonicalUrl } });
     await request(app.getHttpServer() as SupertestApp)
@@ -177,6 +226,8 @@ describe('Backend data API', () => {
       .expect(200);
     expect(detailResponse.text).toContain(enterEventId);
     expect(detailResponse.text).toContain(activeEventId);
+    expect(detailResponse.text).toContain(inactiveEventId);
+    expect(detailResponse.text).toContain(secondActiveEventId);
     expect(detailResponse.text).toContain(leaveEventId);
   });
 

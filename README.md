@@ -67,6 +67,16 @@ Backend hiện có các endpoint:
 
 Để load extension, mở `chrome://extensions`, bật **Developer mode**, chọn **Load unpacked** và trỏ đến `apps/extension/dist`.
 
+### Kiểm tra thủ công thời gian đọc thực tế
+
+1. Chạy PostgreSQL, API và build extension; sau đó bấm **Reload** extension tại `chrome://extensions`.
+2. Mở một bài viết hợp lệ trên VnExpress, Dân Trí hoặc Tuổi Trẻ. Giữ tab và cửa sổ Chrome đang active, rồi cuộn hoặc click trong trang.
+3. Chuyển sang tab khác hoặc chuyển focus sang ứng dụng khác; extension sẽ phát `PAGE_INACTIVE`.
+4. Quay lại tab bài báo và tương tác; extension sẽ phát `PAGE_ACTIVE` cho khoảng đọc mới.
+5. Không tương tác trong 30 giây để kiểm tra interaction idle, sau đó cuộn trang để active trở lại.
+6. Đóng tab bài báo để phát `PAGE_LEAVE`.
+7. Mở `GET /api/sessions`, sau đó `GET /api/sessions/:id` trong Swagger để kiểm tra timeline theo `sequenceNumber`. `activeReadingMs` chỉ bằng tổng các đoạn `PAGE_ACTIVE` đến `PAGE_INACTIVE` hoặc `PAGE_LEAVE`, không bao gồm thời gian tab bị ẩn hay người dùng idle.
+
 ## Kiểm tra chất lượng
 
 ```bash

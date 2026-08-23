@@ -18,6 +18,11 @@ const sessionListInclude = Prisma.validator<Prisma.ReadingSessionInclude>()({
   },
 });
 type SessionListItem = Prisma.ReadingSessionGetPayload<{ include: typeof sessionListInclude }>;
+interface ActiveTimeEvent {
+  eventType: ReadingEventType;
+  occurredAt: Date;
+  sequenceNumber: number;
+}
 
 export class SessionEventError extends Error {}
 
@@ -82,37 +87,30 @@ export class SessionsService {
   }
 
   async recalculateActiveReadingMs(sessionId: string): Promise<number> {
-    const session = await this.prisma.readingSession.findUnique({
-      where: { sessionId },
-      select: { id: true },
+    return this.prisma.$transaction(async (transaction) => {
+      const session = await transaction.readingSession.findUnique({
+        where: { sessionId },
+        select: { id: true },
+      });
+      if (session === null) throw new NotFoundException('Reading session not found');
+      return this.recalculateInTransaction(transaction, sessionId, session.id);
     });
-    if (session === null) throw new NotFoundException('Reading session not found');
+  }
 
-    const events = await this.prisma.readingEvent.findMany({
+  async recalculateInTransaction(
+    transaction: Prisma.TransactionClient,
+    sessionId: string,
+    sessionDatabaseId: string,
+  ): Promise<number> {
+    const events = await transaction.readingEvent.findMany({
       where: { sessionId },
       orderBy: [{ sequenceNumber: 'asc' }, { occurredAt: 'asc' }],
-      select: { eventType: true, occurredAt: true },
+      select: { eventType: true, occurredAt: true, sequenceNumber: true },
     });
-    let activeSince: Date | null = null;
-    let total = 0;
+    const activeReadingMs = calculateActiveReadingMs(events);
 
-    for (const event of events) {
-      if (event.eventType === ReadingEventType.PAGE_ACTIVE && activeSince === null) {
-        activeSince = event.occurredAt;
-      }
-      if (
-        activeSince !== null &&
-        (event.eventType === ReadingEventType.PAGE_INACTIVE ||
-          event.eventType === ReadingEventType.PAGE_LEAVE)
-      ) {
-        total += Math.max(0, event.occurredAt.getTime() - activeSince.getTime());
-        activeSince = null;
-      }
-    }
-
-    const activeReadingMs = Math.min(total, 2_147_483_647);
-    await this.prisma.readingSession.update({
-      where: { id: session.id },
+    await transaction.readingSession.update({
+      where: { id: sessionDatabaseId },
       data: { activeReadingMs },
     });
     return activeReadingMs;
@@ -169,4 +167,30 @@ export class SessionsService {
       },
     });
   }
+}
+
+export function calculateActiveReadingMs(events: readonly ActiveTimeEvent[]): number {
+  let activeSince: Date | null = null;
+  let total = 0;
+  const orderedEvents = [...events].sort(
+    (left, right) =>
+      left.sequenceNumber - right.sequenceNumber ||
+      left.occurredAt.getTime() - right.occurredAt.getTime(),
+  );
+
+  for (const event of orderedEvents) {
+    if (event.eventType === ReadingEventType.PAGE_ACTIVE && activeSince === null) {
+      activeSince = event.occurredAt;
+    }
+    if (
+      activeSince !== null &&
+      (event.eventType === ReadingEventType.PAGE_INACTIVE ||
+        event.eventType === ReadingEventType.PAGE_LEAVE)
+    ) {
+      total += Math.max(0, event.occurredAt.getTime() - activeSince.getTime());
+      activeSince = null;
+    }
+  }
+
+  return Math.min(total, 2_147_483_647);
 }
