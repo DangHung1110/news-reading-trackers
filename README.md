@@ -58,6 +58,13 @@ Các địa chỉ local:
 - PostgreSQL: `localhost:5432`
 - Extension build: `apps/extension/dist`
 
+Backend hiện có các endpoint:
+
+- `POST /api/events`
+- `GET /api/articles` và `GET /api/articles/:id`
+- `GET /api/sessions` và `GET /api/sessions/:id`
+- `GET /api/site-configs`, `POST /api/site-configs`, `PUT /api/site-configs/:id`
+
 Để load extension, mở `chrome://extensions`, bật **Developer mode**, chọn **Load unpacked** và trỏ đến `apps/extension/dist`.
 
 ## Kiểm tra chất lượng
@@ -66,6 +73,7 @@ Các địa chỉ local:
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm test:e2e
 pnpm build
 ```
 
@@ -105,8 +113,8 @@ Nhấn **Test Connection**, tải PostgreSQL JDBC driver nếu DBeaver hỏi, r�
 ```text
 main                         bản release cuối cùng
 └── develop                  nhánh tích hợp
-    └── chore/01-project-foundation
-        └── feat/02-...      mỗi nhánh mới luôn tách từ develop đã cập nhật
+    ├── chore/01-project-foundation
+    └── feat/02-...          mỗi nhánh mới luôn tách từ develop đã cập nhật
 ```
 
 Quy trình sau khi một feature hoàn tất:

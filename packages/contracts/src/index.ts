@@ -18,9 +18,21 @@ export interface ReadingEventPayload {
   canonicalUrl?: string;
   domain: string;
   title: string;
+  content?: string;
   browserId: string;
   tabId: number;
   context: Record<string, unknown>;
+}
+
+export interface RejectedEvent {
+  eventId: string | null;
+  reasons: string[];
+}
+
+export interface EventBatchResponse {
+  accepted: string[];
+  duplicated: string[];
+  rejected: RejectedEvent[];
 }
 
 export interface ArticleDto {
