@@ -80,6 +80,7 @@ export class EventsService {
         },
       });
       await this.sessionsService.applyEvent(transaction, session, event);
+      await this.sessionsService.recalculateInTransaction(transaction, event.sessionId, session.id);
 
       return 'accepted';
     });
