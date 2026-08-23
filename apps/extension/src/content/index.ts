@@ -87,9 +87,11 @@ function emitReadingEvent(
   };
   if (event.eventType === 'PAGE_ENTER') payload.content = article.content;
 
-  document.documentElement.dataset.newsReadingTracker = event.eventType
-    .replace('PAGE_', '')
-    .toLowerCase();
+  if (event.eventType !== 'PAGE_HEARTBEAT') {
+    document.documentElement.dataset.newsReadingTracker = event.eventType
+      .replace('PAGE_', '')
+      .toLowerCase();
+  }
   void sendMessage({ type: 'READING_EVENT', payload }).catch(() => undefined);
 }
 
@@ -116,6 +118,9 @@ function bindTrackingSignals(): void {
   const leave = () => tracker?.leave();
   window.addEventListener('pagehide', leave);
   window.addEventListener('beforeunload', leave);
+  window.addEventListener('online', () => {
+    void sendMessage({ type: 'SYNC_NOW' }).catch(() => undefined);
+  });
 }
 
 function sendMessage(message: unknown): Promise<unknown> {

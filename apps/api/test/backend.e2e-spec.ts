@@ -20,8 +20,12 @@ describe('Backend data API', () => {
   const inactiveEventId = randomUUID();
   const secondActiveEventId = randomUUID();
   const leaveEventId = randomUUID();
+  const timeoutEnterEventId = randomUUID();
+  const timeoutActiveEventId = randomUUID();
+  const heartbeatEventId = randomUUID();
   const invalidEventId = 'invalid-uuid';
   const sessionId = randomUUID();
+  const timeoutSessionId = randomUUID();
   const browserId = randomUUID();
   const rawUrl = `https://www.vnexpress.net/test/${runId}/?utm_source=e2e`;
   const canonicalUrl = `https://vnexpress.net/test/${runId}`;
@@ -45,11 +49,22 @@ describe('Backend data API', () => {
     await prisma.readingEvent.deleteMany({
       where: {
         eventId: {
-          in: [enterEventId, activeEventId, inactiveEventId, secondActiveEventId, leaveEventId],
+          in: [
+            enterEventId,
+            activeEventId,
+            inactiveEventId,
+            secondActiveEventId,
+            leaveEventId,
+            timeoutEnterEventId,
+            timeoutActiveEventId,
+            heartbeatEventId,
+          ],
         },
       },
     });
-    await prisma.readingSession.deleteMany({ where: { sessionId } });
+    await prisma.readingSession.deleteMany({
+      where: { sessionId: { in: [sessionId, timeoutSessionId] } },
+    });
     await prisma.article.deleteMany({ where: { canonicalUrl } });
     await prisma.siteConfig.deleteMany({ where: { domain: testDomain } });
     await app.close();
@@ -229,6 +244,65 @@ describe('Backend data API', () => {
     expect(detailResponse.text).toContain(inactiveEventId);
     expect(detailResponse.text).toContain(secondActiveEventId);
     expect(detailResponse.text).toContain(leaveEventId);
+  });
+
+  it('times out a stale active session at its last heartbeat', async () => {
+    const enteredAt = new Date(Date.now() - 120_000);
+    const heartbeatAt = new Date(enteredAt.getTime() + 10_000);
+    await request(app.getHttpServer() as SupertestApp)
+      .post('/api/events')
+      .send({
+        events: [
+          {
+            eventId: timeoutEnterEventId,
+            eventType: 'PAGE_ENTER',
+            sessionId: timeoutSessionId,
+            sequenceNumber: 0,
+            occurredAt: enteredAt.toISOString(),
+            url: rawUrl,
+            domain: 'vnexpress.net',
+            title: 'Bài viết timeout test',
+            browserId,
+            tabId: 8,
+            context: {},
+          },
+          {
+            eventId: timeoutActiveEventId,
+            eventType: 'PAGE_ACTIVE',
+            sessionId: timeoutSessionId,
+            sequenceNumber: 1,
+            occurredAt: new Date(enteredAt.getTime() + 1000).toISOString(),
+            url: rawUrl,
+            domain: 'vnexpress.net',
+            title: 'Bài viết timeout test',
+            browserId,
+            tabId: 8,
+            context: {},
+          },
+          {
+            eventId: heartbeatEventId,
+            eventType: 'PAGE_HEARTBEAT',
+            sessionId: timeoutSessionId,
+            sequenceNumber: 2,
+            occurredAt: heartbeatAt.toISOString(),
+            url: rawUrl,
+            domain: 'vnexpress.net',
+            title: 'Bài viết timeout test',
+            browserId,
+            tabId: 8,
+            context: {},
+          },
+        ],
+      })
+      .expect(201);
+
+    await app.get(SessionsService).timeoutStaleSessions();
+    const session = await prisma.readingSession.findUniqueOrThrow({
+      where: { sessionId: timeoutSessionId },
+    });
+    expect(session.status).toBe(ReadingSessionStatus.TIMEOUT);
+    expect(session.endedAt).toEqual(heartbeatAt);
+    expect(session.activeReadingMs).toBe(9000);
   });
 
   it('creates, filters and updates a site configuration', async () => {

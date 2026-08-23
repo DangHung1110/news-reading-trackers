@@ -8,6 +8,7 @@ const TRACKED_EVENT_TYPES: readonly ReadingEventPayload['eventType'][] = [
   'PAGE_ACTIVE',
   'PAGE_INACTIVE',
   'PAGE_LEAVE',
+  'PAGE_HEARTBEAT',
 ];
 
 export interface GetSiteConfigsMessage {
@@ -28,6 +29,22 @@ export interface ReadingEventMessage {
   payload: ReadingEventPayload;
 }
 
+export interface GetSyncStatusMessage {
+  type: 'GET_SYNC_STATUS';
+}
+
+export interface SyncNowMessage {
+  type: 'SYNC_NOW';
+}
+
+export interface EventSyncStatus {
+  pendingCount: number;
+  rejectedCount: number;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+}
+
 export interface TrackingContext {
   browserId: string;
   tabId: number;
@@ -42,7 +59,12 @@ export interface TrackingContextChangedMessage {
 }
 
 export type ExtensionMessage =
-  GetSiteConfigsMessage | ArticleExtractedMessage | GetTrackingContextMessage | ReadingEventMessage;
+  | GetSiteConfigsMessage
+  | ArticleExtractedMessage
+  | GetTrackingContextMessage
+  | ReadingEventMessage
+  | GetSyncStatusMessage
+  | SyncNowMessage;
 
 export interface SiteConfigsResponse {
   ok: boolean;
@@ -54,9 +76,21 @@ export interface TrackingContextResponse {
   data?: TrackingContext;
 }
 
+export interface SyncStatusResponse {
+  ok: boolean;
+  data?: EventSyncStatus;
+}
+
 export function isExtensionMessage(message: unknown): message is ExtensionMessage {
   if (typeof message !== 'object' || message === null || !('type' in message)) return false;
-  if (message.type === 'GET_SITE_CONFIGS' || message.type === 'GET_TRACKING_CONTEXT') return true;
+  if (
+    message.type === 'GET_SITE_CONFIGS' ||
+    message.type === 'GET_TRACKING_CONTEXT' ||
+    message.type === 'GET_SYNC_STATUS' ||
+    message.type === 'SYNC_NOW'
+  ) {
+    return true;
+  }
   if (!('payload' in message)) return false;
   if (message.type === 'ARTICLE_EXTRACTED') return isExtractedArticle(message.payload);
   return message.type === 'READING_EVENT' && isReadingEventPayload(message.payload);

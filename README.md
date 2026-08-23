@@ -76,6 +76,10 @@ Backend hiện có các endpoint:
 5. Không tương tác trong 30 giây để kiểm tra interaction idle, sau đó cuộn trang để active trở lại.
 6. Đóng tab bài báo để phát `PAGE_LEAVE`.
 7. Mở `GET /api/sessions`, sau đó `GET /api/sessions/:id` trong Swagger để kiểm tra timeline theo `sequenceNumber`. `activeReadingMs` chỉ bằng tổng các đoạn `PAGE_ACTIVE` đến `PAGE_INACTIVE` hoặc `PAGE_LEAVE`, không bao gồm thời gian tab bị ẩn hay người dùng idle.
+8. Để kiểm tra offline, tắt API rồi đọc/chuyển tab. Popup sẽ hiển thị số event pending; bật lại API hoặc đưa máy online để extension tự retry và đưa pending về `0`.
+9. Có thể xem outbox tại **Extension DevTools > Application > IndexedDB > newsReadingTracker**. Event chỉ bị xóa sau ACK `accepted` hoặc `duplicated`; event bị từ chối được giữ lại để chẩn đoán.
+
+Khi session đang active, extension phát heartbeat mỗi 15 giây. Backend chuyển session không có event mới trong 45 giây sang `TIMEOUT` và chỉ tính thời gian đến activity/heartbeat cuối cùng.
 
 ## Kiểm tra chất lượng
 

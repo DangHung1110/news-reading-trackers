@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from '@nestjs/common';
 import {
   Prisma,
   ReadingEventType,
@@ -25,10 +31,24 @@ interface ActiveTimeEvent {
 }
 
 export class SessionEventError extends Error {}
+export const SESSION_TIMEOUT_MS = 45_000;
+const SESSION_CLEANUP_INTERVAL_MS = 30_000;
 
 @Injectable()
-export class SessionsService {
+export class SessionsService implements OnModuleInit, OnModuleDestroy {
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
   constructor(private readonly prisma: PrismaService) {}
+
+  onModuleInit(): void {
+    this.cleanupTimer = setInterval(() => {
+      void this.timeoutStaleSessions().catch(() => undefined);
+    }, SESSION_CLEANUP_INTERVAL_MS);
+  }
+
+  onModuleDestroy(): void {
+    if (this.cleanupTimer !== null) clearInterval(this.cleanupTimer);
+  }
 
   async findAll(query: SessionQueryDto): Promise<PaginatedResponse<SessionListItem>> {
     if (
@@ -97,6 +117,32 @@ export class SessionsService {
     });
   }
 
+  async timeoutStaleSessions(referenceTime = new Date()): Promise<number> {
+    const cutoff = new Date(referenceTime.getTime() - SESSION_TIMEOUT_MS);
+    const staleSessions = await this.prisma.readingSession.findMany({
+      where: { status: ReadingSessionStatus.ACTIVE, lastEventAt: { lte: cutoff } },
+      select: { id: true, lastEventAt: true },
+    });
+    if (staleSessions.length === 0) return 0;
+
+    const results = await this.prisma.$transaction(
+      staleSessions.map((session) =>
+        this.prisma.readingSession.updateMany({
+          where: {
+            id: session.id,
+            status: ReadingSessionStatus.ACTIVE,
+            lastEventAt: { lte: cutoff },
+          },
+          data: {
+            status: ReadingSessionStatus.TIMEOUT,
+            endedAt: session.lastEventAt,
+          },
+        }),
+      ),
+    );
+    return results.reduce((total, result) => total + result.count, 0);
+  }
+
   async recalculateInTransaction(
     transaction: Prisma.TransactionClient,
     sessionId: string,
@@ -157,13 +203,21 @@ export class SessionsService {
     const occurredAt = new Date(event.occurredAt);
     const lastEventAt = occurredAt > session.lastEventAt ? occurredAt : session.lastEventAt;
     const closing = event.eventType === ReadingEventType.PAGE_LEAVE;
+    const reopening =
+      event.eventType === ReadingEventType.PAGE_ACTIVE &&
+      session.status === ReadingSessionStatus.TIMEOUT &&
+      occurredAt > session.lastEventAt;
 
     await transaction.readingSession.update({
       where: { id: session.id },
       data: {
         lastEventAt,
-        endedAt: closing ? occurredAt : undefined,
-        status: closing ? ReadingSessionStatus.COMPLETED : undefined,
+        endedAt: closing ? occurredAt : reopening ? null : undefined,
+        status: closing
+          ? ReadingSessionStatus.COMPLETED
+          : reopening
+            ? ReadingSessionStatus.ACTIVE
+            : undefined,
       },
     });
   }
@@ -177,8 +231,10 @@ export function calculateActiveReadingMs(events: readonly ActiveTimeEvent[]): nu
       left.sequenceNumber - right.sequenceNumber ||
       left.occurredAt.getTime() - right.occurredAt.getTime(),
   );
+  let lastConfirmedAt: Date | null = null;
 
   for (const event of orderedEvents) {
+    lastConfirmedAt = event.occurredAt;
     if (event.eventType === ReadingEventType.PAGE_ACTIVE && activeSince === null) {
       activeSince = event.occurredAt;
     }
@@ -190,6 +246,10 @@ export function calculateActiveReadingMs(events: readonly ActiveTimeEvent[]): nu
       total += Math.max(0, event.occurredAt.getTime() - activeSince.getTime());
       activeSince = null;
     }
+  }
+
+  if (activeSince !== null && lastConfirmedAt !== null) {
+    total += Math.max(0, lastConfirmedAt.getTime() - activeSince.getTime());
   }
 
   return Math.min(total, 2_147_483_647);

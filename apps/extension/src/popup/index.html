@@ -11,6 +11,17 @@
       <p class="eyebrow">News Reading Tracker</p>
       <h1>Tracker ready</h1>
       <p id="page-status">Checking the current tab…</p>
+      <dl class="sync-status">
+        <div>
+          <dt>Pending events</dt>
+          <dd id="pending-count">—</dd>
+        </div>
+        <div>
+          <dt>Last sync</dt>
+          <dd id="last-sync">Checking…</dd>
+        </div>
+      </dl>
+      <p id="sync-error" class="sync-error" hidden></p>
       <button id="open-options" type="button">API settings</button>
     </main>
     <script type="module" src="./main.ts"></script>

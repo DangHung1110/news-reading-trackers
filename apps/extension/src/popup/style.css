@@ -23,6 +23,33 @@ p {
   line-height: 1.5;
 }
 
+.sync-status {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0;
+}
+
+.sync-status div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sync-status dt {
+  color: #afc4d6;
+}
+
+.sync-status dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+}
+
+.sync-error {
+  color: #ffb4a8;
+  font-size: 0.8rem;
+}
+
 .eyebrow {
   margin: 0 0 0.4rem;
   color: #68dfc4;
