@@ -2,11 +2,11 @@
   "extends": "@news-tracker/typescript-config/base.json",
   "compilerOptions": {
     "isolatedModules": true,
-    "lib": ["DOM", "ES2022"],
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
-    "types": ["chrome", "vite/client", "node"]
+    "types": ["chrome", "vite/client", "node", "vitest/globals"]
   },
-  "include": ["src/**/*.ts", "vite.config.ts"]
+  "include": ["src/**/*.ts", "vite.config.ts", "vitest.config.ts"]
 }
