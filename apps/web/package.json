@@ -6,7 +6,7 @@
     "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start --port 3001",
-    "lint": "eslint app components lib --max-warnings=0",
+    "lint": "eslint app components features lib --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

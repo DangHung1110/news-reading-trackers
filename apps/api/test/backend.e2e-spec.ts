@@ -5,6 +5,12 @@ import { Test } from '@nestjs/testing';
 import { ReadingSessionStatus } from '@prisma/client';
 import request from 'supertest';
 
+import type {
+  ArticleListItemDto,
+  DashboardSummaryDto,
+  PaginatedResponse,
+} from '@news-tracker/contracts';
+
 import { AppModule } from '../src/app.module';
 import { SessionsService } from '../src/modules/sessions/sessions.service';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -227,9 +233,12 @@ describe('Backend data API', () => {
     expect(await app.get(SessionsService).recalculateActiveReadingMs(sessionId)).toBe(5000);
 
     const article = await prisma.article.findUniqueOrThrow({ where: { canonicalUrl } });
-    await request(app.getHttpServer() as SupertestApp)
+    const articleListResponse = await request(app.getHttpServer() as SupertestApp)
       .get(`/api/articles?search=${runId}&domain=vnexpress.net&page=1&pageSize=10`)
       .expect(200);
+    const articleList = articleListResponse.body as PaginatedResponse<ArticleListItemDto>;
+    expect(articleList.data[0]?.totalReadingMs).toBe(5000);
+    expect(articleList.data[0]?.sessionCount).toBe(1);
     await request(app.getHttpServer() as SupertestApp)
       .get(`/api/articles/${article.id}`)
       .expect(200);
@@ -244,6 +253,14 @@ describe('Backend data API', () => {
     expect(detailResponse.text).toContain(inactiveEventId);
     expect(detailResponse.text).toContain(secondActiveEventId);
     expect(detailResponse.text).toContain(leaveEventId);
+
+    const dashboardResponse = await request(app.getHttpServer() as SupertestApp)
+      .get('/api/dashboard')
+      .expect(200);
+    const dashboard = dashboardResponse.body as DashboardSummaryDto;
+    expect(dashboard.articleCount).toBeGreaterThanOrEqual(1);
+    expect(dashboard.sessionCount).toBeGreaterThanOrEqual(1);
+    expect(dashboard.totalReadingMs).toBeGreaterThanOrEqual(5000);
   });
 
   it('times out a stale active session at its last heartbeat', async () => {

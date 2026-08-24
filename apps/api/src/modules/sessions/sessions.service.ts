@@ -22,8 +22,10 @@ const sessionListInclude = Prisma.validator<Prisma.ReadingSessionInclude>()({
   article: {
     select: { id: true, canonicalUrl: true, domain: true, title: true },
   },
+  _count: { select: { events: true } },
 });
 type SessionListItem = Prisma.ReadingSessionGetPayload<{ include: typeof sessionListInclude }>;
+type SessionListResponseItem = Omit<SessionListItem, '_count'> & { eventCount: number };
 interface ActiveTimeEvent {
   eventType: ReadingEventType;
   occurredAt: Date;
@@ -50,7 +52,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
     if (this.cleanupTimer !== null) clearInterval(this.cleanupTimer);
   }
 
-  async findAll(query: SessionQueryDto): Promise<PaginatedResponse<SessionListItem>> {
+  async findAll(query: SessionQueryDto): Promise<PaginatedResponse<SessionListResponseItem>> {
     if (
       query.from !== undefined &&
       query.to !== undefined &&
@@ -91,7 +93,15 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
       this.prisma.readingSession.count({ where }),
     ]);
 
-    return { data, page: query.page, pageSize: query.pageSize, total };
+    return {
+      data: data.map(({ _count, ...session }) => ({
+        ...session,
+        eventCount: _count.events,
+      })),
+      page: query.page,
+      pageSize: query.pageSize,
+      total,
+    };
   }
 
   async findOne(id: string) {

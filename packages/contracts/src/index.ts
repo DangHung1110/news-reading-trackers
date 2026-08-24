@@ -49,6 +49,16 @@ export interface ArticleDto {
   lastCollectedAt: string;
 }
 
+export interface ArticleListItemDto extends ArticleDto {
+  totalReadingMs: number;
+  lastReadAt: string | null;
+  sessionCount: number;
+}
+
+export interface ArticleDetailDto extends ArticleListItemDto {
+  readingSessions: ReadingSessionListItemDto[];
+}
+
 export interface ReadingSessionDto {
   id: string;
   sessionId: string;
@@ -60,6 +70,41 @@ export interface ReadingSessionDto {
   activeReadingMs: number;
   status: string;
   lastEventAt: string;
+}
+
+export interface SessionArticleDto {
+  id: string;
+  canonicalUrl: string;
+  domain: string;
+  title: string;
+}
+
+export interface ReadingSessionListItemDto extends ReadingSessionDto {
+  article: SessionArticleDto;
+  eventCount: number;
+}
+
+export interface ReadingEventDto {
+  id: string;
+  eventId: string;
+  eventType: ReadingEventType;
+  sequenceNumber: number;
+  occurredAt: string;
+  receivedAt: string;
+}
+
+export interface ReadingSessionDetailDto extends ReadingSessionDto {
+  article: ArticleDto;
+  events: ReadingEventDto[];
+}
+
+export interface DashboardSummaryDto {
+  articleCount: number;
+  sessionCount: number;
+  activeSessionCount: number;
+  totalReadingMs: number;
+  recentArticles: ArticleListItemDto[];
+  recentSessions: ReadingSessionListItemDto[];
 }
 
 export interface SiteConfigDto {
