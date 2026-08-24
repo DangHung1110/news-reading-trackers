@@ -1,11 +1,18 @@
 import { API_URL_STORAGE_KEY, DEFAULT_API_URL } from '../config/api';
 import { loadSiteConfigs } from '../config/site-configs';
 import { isExtensionMessage, type TrackingContext } from '../messages';
-import { enqueueReadingEvent, flushReadingEvents } from '../tracking/event-queue';
+import {
+  enqueueReadingEvent,
+  flushReadingEvents,
+  getEventSyncStatus,
+  getNextRetryAt,
+  migrateLegacyEventQueue,
+} from '../tracking/event-queue';
 
 const BROWSER_ID_STORAGE_KEY = 'browserId';
 const LAST_EXTRACTED_ARTICLE_KEY = 'lastExtractedArticle';
-const EVENT_FLUSH_ALARM = 'flushReadingEvents';
+const EVENT_SYNC_ALARM = 'syncReadingEvents';
+const EVENT_SAFETY_ALARM = 'periodicReadingEventSync';
 const CHROME_IDLE_SECONDS = 60;
 const SUPPORTED_ARTICLE_URLS = [
   'https://vnexpress.net/*',
@@ -13,13 +20,14 @@ const SUPPORTED_ARTICLE_URLS = [
   'https://tuoitre.vn/*',
 ];
 let browserIdPromise: Promise<string> | null = null;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
 chrome.runtime.onInstalled.addListener(() => {
-  void initializeBackground();
+  void initializeBackground().catch(() => undefined);
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  void initializeBackground();
+  void initializeBackground().catch(() => undefined);
 });
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
@@ -47,10 +55,24 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     return true;
   }
 
+  if (message.type === 'GET_SYNC_STATUS') {
+    void getEventSyncStatus()
+      .then((data) => sendResponse({ ok: true, data }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (message.type === 'SYNC_NOW') {
+    void syncAndSchedule()
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
   void enqueueReadingEvent(message.payload)
     .then(() => {
       sendResponse({ ok: true });
-      void flushReadingEvents();
+      void syncAndSchedule();
     })
     .catch(() => sendResponse({ ok: false }));
   return true;
@@ -69,7 +91,13 @@ chrome.idle.onStateChanged.addListener(() => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === EVENT_FLUSH_ALARM) void flushReadingEvents();
+  if (alarm.name === EVENT_SYNC_ALARM || alarm.name === EVENT_SAFETY_ALARM) {
+    void syncAndSchedule();
+  }
+});
+
+globalThis.addEventListener('online', () => {
+  void syncAndSchedule();
 });
 
 async function initializeBackground(): Promise<void> {
@@ -78,9 +106,25 @@ async function initializeBackground(): Promise<void> {
     await chrome.storage.sync.set({ [API_URL_STORAGE_KEY]: DEFAULT_API_URL });
   }
   await ensureBrowserId();
+  await migrateLegacyEventQueue();
   chrome.idle.setDetectionInterval(CHROME_IDLE_SECONDS);
-  void chrome.alarms.create(EVENT_FLUSH_ALARM, { periodInMinutes: 1 });
+  void chrome.alarms.create(EVENT_SAFETY_ALARM, { periodInMinutes: 1 });
+  await syncAndSchedule();
+}
+
+async function syncAndSchedule(): Promise<void> {
   await flushReadingEvents();
+  const nextRetryAt = await getNextRetryAt();
+  if (retryTimer !== null) clearTimeout(retryTimer);
+  retryTimer = null;
+
+  if (nextRetryAt === null) {
+    await chrome.alarms.clear(EVENT_SYNC_ALARM);
+    return;
+  }
+  const delay = Math.max(1_000, nextRetryAt - Date.now());
+  void chrome.alarms.create(EVENT_SYNC_ALARM, { when: Date.now() + delay });
+  retryTimer = setTimeout(() => void syncAndSchedule(), delay);
 }
 
 function ensureBrowserId(): Promise<string> {
@@ -146,4 +190,4 @@ async function notifyTrackingContexts(): Promise<void> {
   );
 }
 
-void initializeBackground();
+void initializeBackground().catch(() => undefined);

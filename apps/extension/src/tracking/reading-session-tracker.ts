@@ -12,7 +12,7 @@ export interface ActivityConditions {
 export interface TrackingEvent {
   eventType: Extract<
     ReadingEventType,
-    'PAGE_ENTER' | 'PAGE_ACTIVE' | 'PAGE_INACTIVE' | 'PAGE_LEAVE'
+    'PAGE_ENTER' | 'PAGE_ACTIVE' | 'PAGE_INACTIVE' | 'PAGE_LEAVE' | 'PAGE_HEARTBEAT'
   >;
   sequenceNumber: number;
   occurredAt: string;
@@ -26,6 +26,7 @@ export class ReadingSessionTracker {
   private sequenceNumber = 0;
   private interactionIdle = false;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private conditions: ActivityConditions = {
     pageVisible: false,
     tabActive: false,
@@ -37,6 +38,7 @@ export class ReadingSessionTracker {
     private readonly eventSink: EventSink,
     private readonly idleTimeoutMs = 30_000,
     private readonly now: () => number = Date.now,
+    private readonly heartbeatIntervalMs = 15_000,
   ) {}
 
   get currentState(): TrackingState {
@@ -68,6 +70,7 @@ export class ReadingSessionTracker {
   leave(): void {
     if (this.state === 'NOT_TRACKING' || this.state === 'LEFT') return;
     this.clearIdleTimer();
+    this.stopHeartbeat();
     this.state = 'LEFT';
     this.emit('PAGE_LEAVE');
   }
@@ -84,7 +87,9 @@ export class ReadingSessionTracker {
     if (shouldBeActive && this.state !== 'ACTIVE') {
       this.state = 'ACTIVE';
       this.emit('PAGE_ACTIVE');
+      this.startHeartbeat();
     } else if (!shouldBeActive && this.state === 'ACTIVE') {
+      this.stopHeartbeat();
       this.state = 'INACTIVE';
       this.emit('PAGE_INACTIVE');
     }
@@ -102,6 +107,19 @@ export class ReadingSessionTracker {
     if (this.idleTimer === null) return;
     clearTimeout(this.idleTimer);
     this.idleTimer = null;
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (this.state === 'ACTIVE') this.emit('PAGE_HEARTBEAT');
+    }, this.heartbeatIntervalMs);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer === null) return;
+    clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
   }
 
   private emit(eventType: TrackingEvent['eventType']): void {

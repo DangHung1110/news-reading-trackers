@@ -43,4 +43,14 @@ describe('calculateActiveReadingMs', () => {
       ]),
     ).toBe(0);
   });
+
+  it('counts an open active interval only through the last heartbeat', () => {
+    expect(
+      calculateActiveReadingMs([
+        event(ReadingEventType.PAGE_ENTER, 0, 0),
+        event(ReadingEventType.PAGE_ACTIVE, 1, 1_000),
+        event(ReadingEventType.PAGE_HEARTBEAT, 2, 6_000),
+      ]),
+    ).toBe(5_000);
+  });
 });

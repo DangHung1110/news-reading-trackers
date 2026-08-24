@@ -17,6 +17,7 @@ enum ReadingSessionStatus {
   ACTIVE
   COMPLETED
   ABANDONED
+  TIMEOUT
 }
 
 enum ReadingEventType {
@@ -82,6 +83,7 @@ model ReadingSession {
   @@index([articleId])
   @@index([browserId])
   @@index([startedAt])
+  @@index([lastEventAt])
   @@index([status])
 }
 
