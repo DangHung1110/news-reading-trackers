@@ -14,11 +14,7 @@ const LAST_EXTRACTED_ARTICLE_KEY = 'lastExtractedArticle';
 const EVENT_SYNC_ALARM = 'syncReadingEvents';
 const EVENT_SAFETY_ALARM = 'periodicReadingEventSync';
 const CHROME_IDLE_SECONDS = 60;
-const SUPPORTED_ARTICLE_URLS = [
-  'https://vnexpress.net/*',
-  'https://dantri.com.vn/*',
-  'https://tuoitre.vn/*',
-];
+const SUPPORTED_ARTICLE_URLS = ['https://*/*'];
 let browserIdPromise: Promise<string> | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 

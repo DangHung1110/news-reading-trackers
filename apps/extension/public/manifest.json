@@ -4,19 +4,14 @@
   "description": "Tracks active reading time on supported Vietnamese news sites.",
   "version": "0.1.0",
   "permissions": ["tabs", "storage", "idle", "alarms"],
-  "host_permissions": [
-    "http://localhost:3000/*",
-    "https://vnexpress.net/*",
-    "https://dantri.com.vn/*",
-    "https://tuoitre.vn/*"
-  ],
+  "host_permissions": ["http://localhost:3000/*", "https://*/*"],
   "background": {
     "service_worker": "assets/background.js",
     "type": "module"
   },
   "content_scripts": [
     {
-      "matches": ["https://vnexpress.net/*", "https://dantri.com.vn/*", "https://tuoitre.vn/*"],
+      "matches": ["https://*/*"],
       "js": ["assets/content.js"],
       "run_at": "document_idle"
     }

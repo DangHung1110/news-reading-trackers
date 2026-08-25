@@ -19,6 +19,7 @@ export function CreateSiteConfig() {
   const [pattern, setPattern] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [remove, setRemove] = useState('');
   const create = useMutation({
     mutationFn: () =>
       apiClient.post<SiteConfigDto>('/site-configs', {
@@ -27,7 +28,7 @@ export function CreateSiteConfig() {
         articleUrlPatterns: splitLines(pattern),
         titleSelectors: splitLines(title),
         contentSelectors: splitLines(content),
-        removeSelectors: [],
+        removeSelectors: splitLines(remove),
       }),
     onSuccess: () => {
       setOpen(false);
@@ -35,6 +36,7 @@ export function CreateSiteConfig() {
       setPattern('');
       setTitle('');
       setContent('');
+      setRemove('');
       void queryClient.invalidateQueries({ queryKey: ['site-configs'] });
     },
   });
@@ -70,6 +72,10 @@ export function CreateSiteConfig() {
         <label>
           Content selectors
           <textarea value={content} onChange={(event) => setContent(event.target.value)} />
+        </label>
+        <label>
+          Remove selectors
+          <textarea value={remove} onChange={(event) => setRemove(event.target.value)} />
         </label>
       </div>
       <div className="form-actions">

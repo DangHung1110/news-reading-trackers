@@ -12,6 +12,10 @@ function createUrl(path: string, query?: Record<string, QueryValue>): string {
   return url.toString();
 }
 
+export function getApiUrl(path: string): string {
+  return createUrl(path);
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,

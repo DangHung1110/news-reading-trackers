@@ -5,6 +5,7 @@ import type { EventBatchResponse, RejectedEvent } from '@news-tracker/contracts'
 import { readingEventSchema, type ValidatedReadingEvent } from '@news-tracker/validation';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { RealtimeService } from '../../realtime/realtime.service';
 import { ArticlesService } from '../articles/articles.service';
 import { SessionEventError, SessionsService } from '../sessions/sessions.service';
 
@@ -16,6 +17,7 @@ export class EventsService {
     private readonly prisma: PrismaService,
     private readonly articlesService: ArticlesService,
     private readonly sessionsService: SessionsService,
+    private readonly realtimeService: RealtimeService,
   ) {}
 
   async ingestBatch(inputs: unknown[]): Promise<EventBatchResponse> {
@@ -51,19 +53,29 @@ export class EventsService {
     return response;
   }
 
-  private processEvent(event: ValidatedReadingEvent): Promise<ProcessingResult> {
-    return this.prisma.$transaction(async (transaction) => {
+  private async processEvent(event: ValidatedReadingEvent): Promise<ProcessingResult> {
+    const processed = await this.prisma.$transaction(async (transaction) => {
       const duplicate = await transaction.readingEvent.findUnique({
         where: { eventId: event.eventId },
         select: { id: true },
       });
-      if (duplicate !== null) return 'duplicated';
+      if (duplicate !== null) return { result: 'duplicated' as const };
+
+      const existingArticle =
+        event.eventType === ReadingEventType.PAGE_ENTER
+          ? await transaction.article.findUnique({
+              where: {
+                canonicalUrl: this.articlesService.normalizeUrl(event.canonicalUrl ?? event.url),
+              },
+              select: { id: true },
+            })
+          : null;
 
       const article =
         event.eventType === ReadingEventType.PAGE_ENTER
           ? await this.articlesService.upsertFromEvent(transaction, event)
           : undefined;
-      const session = await this.sessionsService.ensureForEvent(transaction, event, article?.id);
+      const ensured = await this.sessionsService.ensureForEvent(transaction, event, article?.id);
 
       await transaction.readingEvent.create({
         data: {
@@ -79,11 +91,40 @@ export class EventsService {
           payload: event.context,
         },
       });
-      await this.sessionsService.applyEvent(transaction, session, event);
-      await this.sessionsService.recalculateInTransaction(transaction, event.sessionId, session.id);
+      await this.sessionsService.applyEvent(transaction, ensured.session, event);
+      await this.sessionsService.recalculateInTransaction(
+        transaction,
+        event.sessionId,
+        ensured.session.id,
+      );
 
-      return 'accepted';
+      return {
+        result: 'accepted' as const,
+        articleId: article?.id,
+        articleCreated: article !== undefined && existingArticle === null,
+        sessionId: ensured.session.id,
+        sessionCreated: ensured.created,
+      };
     });
+
+    if (processed.result === 'duplicated') return processed.result;
+    const occurredAt = new Date().toISOString();
+    this.realtimeService.publish('reading-event.created', { id: event.eventId, occurredAt });
+    this.realtimeService.publish(processed.sessionCreated ? 'session.created' : 'session.updated', {
+      id: processed.sessionId,
+      occurredAt,
+    });
+    if (processed.articleId !== undefined) {
+      this.realtimeService.publish(
+        processed.articleCreated ? 'article.created' : 'article.updated',
+        {
+          id: processed.articleId,
+          occurredAt,
+        },
+      );
+    }
+    this.realtimeService.publish('dashboard.updated', { occurredAt });
+    return processed.result;
   }
 
   private getCandidateEventId(input: unknown): string | null {

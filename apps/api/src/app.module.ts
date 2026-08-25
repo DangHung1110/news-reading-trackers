@@ -9,6 +9,7 @@ import { EventsModule } from './modules/events/events.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { SiteConfigsModule } from './modules/site-configs/site-configs.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RealtimeModule } from './realtime/realtime.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { PrismaModule } from './prisma/prisma.module';
       validate: validateEnvironment,
     }),
     PrismaModule,
+    RealtimeModule,
     HealthModule,
     ArticlesModule,
     DashboardModule,

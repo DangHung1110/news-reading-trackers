@@ -103,8 +103,45 @@ export interface DashboardSummaryDto {
   sessionCount: number;
   activeSessionCount: number;
   totalReadingMs: number;
+  averageReadingMs: number;
+  topDomain: string | null;
   recentArticles: ArticleListItemDto[];
   recentSessions: ReadingSessionListItemDto[];
+}
+
+export interface TimeSeriesPointDto {
+  label: string;
+  value: number;
+}
+
+export interface ReadingActivityPointDto {
+  label: string;
+  activeMs: number;
+  inactiveMs: number;
+}
+
+export interface DashboardAnalyticsDto {
+  readingTimeByDate: TimeSeriesPointDto[];
+  articleCountByDomain: TimeSeriesPointDto[];
+  readingTimeByDomain: TimeSeriesPointDto[];
+  activeInactiveByDate: ReadingActivityPointDto[];
+  activityByHour: TimeSeriesPointDto[];
+}
+
+export const REALTIME_EVENT_NAMES = [
+  'reading-event.created',
+  'session.created',
+  'session.updated',
+  'article.created',
+  'article.updated',
+  'dashboard.updated',
+] as const;
+
+export type RealtimeEventName = (typeof REALTIME_EVENT_NAMES)[number];
+
+export interface RealtimeEventPayload {
+  id?: string;
+  occurredAt: string;
 }
 
 export interface SiteConfigDto {

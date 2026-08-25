@@ -4,6 +4,8 @@ import { normalizeDomain } from '../extraction/generic-article.extractor';
 import type { SiteExtractionConfig } from '../extraction/types';
 
 const CACHE_DURATION_MS = 5 * 60 * 1000;
+const CONFIG_CACHE_KEY = 'siteConfigCache';
+const CONFIG_CACHE_TIME_KEY = 'siteConfigCacheUpdatedAt';
 let cachedConfigs: SiteExtractionConfig[] | null = null;
 let cachedAt = 0;
 
@@ -12,7 +14,14 @@ export async function loadSiteConfigs(): Promise<SiteExtractionConfig[]> {
     return cachedConfigs;
   }
 
-  const defaults = DEFAULT_SITE_CONFIGS.map(cloneConfig);
+  const defaults = DEFAULT_SITE_CONFIGS.filter(({ enabled }) => enabled).map(cloneConfig);
+  const stored = await loadStoredCache();
+  if (stored !== null && Date.now() - stored.updatedAt < CACHE_DURATION_MS) {
+    cachedConfigs = stored.configs;
+    cachedAt = stored.updatedAt;
+    return cachedConfigs;
+  }
+
   try {
     const apiUrl = (await getApiUrl()).replace(/\/$/u, '');
     const response = await fetch(`${apiUrl}/site-configs?page=1&pageSize=100`, {
@@ -23,18 +32,39 @@ export async function loadSiteConfigs(): Promise<SiteExtractionConfig[]> {
 
     const payload: unknown = await response.json();
     const remoteConfigs = getConfigArray(payload);
-    cachedConfigs = defaults.map((defaultConfig) => {
-      const remote = remoteConfigs.find(
-        (config) => normalizeDomain(config.domain) === normalizeDomain(defaultConfig.domain),
-      );
-      return remote === undefined ? defaultConfig : cloneConfig(remote);
+    const remoteDomains = new Set(remoteConfigs.map(({ domain }) => normalizeDomain(domain)));
+    cachedConfigs = [
+      ...remoteConfigs.filter(({ enabled }) => enabled).map(cloneConfig),
+      ...defaults.filter(({ domain }) => !remoteDomains.has(normalizeDomain(domain))),
+    ];
+    cachedAt = Date.now();
+    await chrome.storage.local.set({
+      [CONFIG_CACHE_KEY]: cachedConfigs,
+      [CONFIG_CACHE_TIME_KEY]: cachedAt,
     });
   } catch {
-    cachedConfigs = defaults;
+    cachedConfigs = stored?.configs ?? defaults;
+    cachedAt = stored?.updatedAt ?? Date.now();
   }
 
-  cachedAt = Date.now();
   return cachedConfigs;
+}
+
+async function loadStoredCache(): Promise<{
+  configs: SiteExtractionConfig[];
+  updatedAt: number;
+} | null> {
+  const stored = await chrome.storage.local.get([CONFIG_CACHE_KEY, CONFIG_CACHE_TIME_KEY]);
+  const configs = stored[CONFIG_CACHE_KEY];
+  const updatedAt = stored[CONFIG_CACHE_TIME_KEY];
+  if (
+    !Array.isArray(configs) ||
+    !configs.every(isSiteExtractionConfig) ||
+    typeof updatedAt !== 'number'
+  ) {
+    return null;
+  }
+  return { configs: configs.map(cloneConfig), updatedAt };
 }
 
 export function isSiteExtractionConfig(value: unknown): value is SiteExtractionConfig {

@@ -20,6 +20,8 @@ export function SiteConfigCard({ config }: { config: SiteConfigDto }) {
   const [titles, setTitles] = useState(joinLines(config.titleSelectors));
   const [contents, setContents] = useState(joinLines(config.contentSelectors));
   const [removes, setRemoves] = useState(joinLines(config.removeSelectors));
+  const [testUrl, setTestUrl] = useState('');
+  const [testResult, setTestResult] = useState<string | null>(null);
   const update = useMutation({
     mutationFn: () =>
       apiClient.put<SiteConfigDto>(`/site-configs/${config.id}`, {
@@ -31,6 +33,22 @@ export function SiteConfigCard({ config }: { config: SiteConfigDto }) {
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['site-configs'] }),
   });
+  const testConfiguration = () => {
+    try {
+      const url = new URL(testUrl);
+      const domainMatches = url.hostname.replace(/^www\./u, '') === config.domain;
+      const patternMatches = splitLines(patterns).some((pattern) =>
+        new RegExp(pattern, 'u').test(testUrl),
+      );
+      setTestResult(
+        domainMatches && patternMatches
+          ? 'URL phù hợp cấu hình.'
+          : 'URL không khớp domain hoặc pattern.',
+      );
+    } catch {
+      setTestResult('URL hoặc regular expression không hợp lệ.');
+    }
+  };
 
   return (
     <article className="site-card">
@@ -47,6 +65,18 @@ export function SiteConfigCard({ config }: { config: SiteConfigDto }) {
           />{' '}
           Bật
         </label>
+      </div>
+      <div className="config-test">
+        <input
+          aria-label={`URL kiểm tra ${config.domain}`}
+          placeholder={`https://${config.domain}/bai-viet...`}
+          value={testUrl}
+          onChange={(event) => setTestUrl(event.target.value)}
+        />
+        <button className="button secondary" type="button" onClick={testConfiguration}>
+          Kiểm tra URL
+        </button>
+        {testResult === null ? null : <span>{testResult}</span>}
       </div>
       <div className="config-grid">
         <label>
