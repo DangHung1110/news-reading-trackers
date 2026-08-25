@@ -1,11 +1,5 @@
-import { ApiConnection } from '../../components/api-connection';
+import { redirect } from 'next/navigation';
 
-export default function DashboardPage() {
-  return (
-    <section className="card">
-      <h2>API connection</h2>
-      <p>Foundation page for checking NestJS and PostgreSQL connectivity.</p>
-      <ApiConnection />
-    </section>
-  );
+export default function HomePage() {
+  redirect('/dashboard');
 }
