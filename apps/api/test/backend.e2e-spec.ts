@@ -9,6 +9,7 @@ import type {
   ArticleListItemDto,
   DashboardSummaryDto,
   PaginatedResponse,
+  ReadingSessionListItemDto,
 } from '@news-tracker/contracts';
 
 import { AppModule } from '../src/app.module';
@@ -232,6 +233,31 @@ describe('Backend data API', () => {
     expect(session.activeReadingMs).toBe(5000);
     expect(await app.get(SessionsService).recalculateActiveReadingMs(sessionId)).toBe(5000);
 
+    await request(app.getHttpServer() as SupertestApp)
+      .post('/api/events')
+      .send({
+        events: [
+          {
+            eventId: activeEventId,
+            eventType: 'PAGE_ACTIVE',
+            sessionId,
+            sequenceNumber: 1,
+            occurredAt: new Date(startedAt.getTime() + 1000).toISOString(),
+            url: rawUrl,
+            domain: 'vnexpress.net',
+            title: 'Bài viết integration test',
+            browserId,
+            tabId: 7,
+            context: {},
+          },
+        ],
+      })
+      .expect(201)
+      .expect(({ text }) => expect(text).toContain(`"duplicated":["${activeEventId}"]`));
+    expect(
+      (await prisma.readingSession.findUniqueOrThrow({ where: { sessionId } })).activeReadingMs,
+    ).toBe(5000);
+
     const article = await prisma.article.findUniqueOrThrow({ where: { canonicalUrl } });
     const articleListResponse = await request(app.getHttpServer() as SupertestApp)
       .get(`/api/articles?search=${runId}&domain=vnexpress.net&page=1&pageSize=10`)
@@ -242,9 +268,11 @@ describe('Backend data API', () => {
     await request(app.getHttpServer() as SupertestApp)
       .get(`/api/articles/${article.id}`)
       .expect(200);
-    await request(app.getHttpServer() as SupertestApp)
+    const sessionListResponse = await request(app.getHttpServer() as SupertestApp)
       .get(`/api/sessions?search=${sessionId}&status=COMPLETED&domain=vnexpress.net`)
       .expect(200);
+    const sessionList = sessionListResponse.body as PaginatedResponse<ReadingSessionListItemDto>;
+    expect(sessionList).toMatchObject({ page: 1, pageSize: 20, total: 1 });
     const detailResponse = await request(app.getHttpServer() as SupertestApp)
       .get(`/api/sessions/${session.id}`)
       .expect(200);
