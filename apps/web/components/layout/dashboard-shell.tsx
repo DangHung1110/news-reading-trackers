@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
+import { useRealtimeStatus } from '../realtime-provider';
+
 const navigation = [
   { href: '/dashboard', label: 'Tổng quan', mark: '01' },
   { href: '/articles', label: 'Bài báo', mark: '02' },
@@ -21,6 +23,7 @@ const labels: Record<string, string> = {
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const realtimeStatus = useRealtimeStatus();
   const segments = pathname.split('/').filter(Boolean);
   const currentTitle = labels[segments.at(-1) ?? ''] ?? 'Chi tiết';
 
@@ -56,7 +59,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             <div className="breadcrumb">News Tracker / {currentTitle}</div>
             <strong>{currentTitle}</strong>
           </div>
-          <span className="environment">Local</span>
+          <div className="topbar-status">
+            <span className={`realtime-status realtime-${realtimeStatus}`}>
+              <i /> Realtime {realtimeStatus}
+            </span>
+            <span className="environment">Local</span>
+          </div>
         </header>
         <main className="page-content">{children}</main>
       </div>

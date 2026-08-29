@@ -16,6 +16,7 @@ import type { PaginatedResponse } from '@news-tracker/contracts';
 import type { ValidatedReadingEvent } from '@news-tracker/validation';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { RealtimeService } from '../../realtime/realtime.service';
 import type { SessionQueryDto } from './dto/session-query.dto';
 
 const sessionListInclude = Prisma.validator<Prisma.ReadingSessionInclude>()({
@@ -40,7 +41,10 @@ const SESSION_CLEANUP_INTERVAL_MS = 30_000;
 export class SessionsService implements OnModuleInit, OnModuleDestroy {
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtimeService: RealtimeService,
+  ) {}
 
   onModuleInit(): void {
     this.cleanupTimer = setInterval(() => {
@@ -150,7 +154,15 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
         }),
       ),
     );
-    return results.reduce((total, result) => total + result.count, 0);
+    const updatedCount = results.reduce((total, result) => total + result.count, 0);
+    if (updatedCount > 0) {
+      const occurredAt = referenceTime.toISOString();
+      for (const session of staleSessions) {
+        this.realtimeService.publish('session.updated', { id: session.id, occurredAt });
+      }
+      this.realtimeService.publish('dashboard.updated', { occurredAt });
+    }
+    return updatedCount;
   }
 
   async recalculateInTransaction(
@@ -176,7 +188,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
     transaction: Prisma.TransactionClient,
     event: ValidatedReadingEvent,
     articleId?: string,
-  ): Promise<ReadingSession> {
+  ): Promise<{ session: ReadingSession; created: boolean }> {
     const existing = await transaction.readingSession.findUnique({
       where: { sessionId: event.sessionId },
     });
@@ -185,7 +197,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
       if (articleId !== undefined && existing.articleId !== articleId) {
         throw new SessionEventError('Session already belongs to another article');
       }
-      return existing;
+      return { session: existing, created: false };
     }
 
     if (event.eventType !== ReadingEventType.PAGE_ENTER || articleId === undefined) {
@@ -193,7 +205,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
     }
 
     const occurredAt = new Date(event.occurredAt);
-    return transaction.readingSession.create({
+    const session = await transaction.readingSession.create({
       data: {
         sessionId: event.sessionId,
         browserId: event.browserId,
@@ -203,6 +215,7 @@ export class SessionsService implements OnModuleInit, OnModuleDestroy {
         lastEventAt: occurredAt,
       },
     });
+    return { session, created: true };
   }
 
   async applyEvent(
