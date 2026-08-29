@@ -10,6 +10,7 @@ import {
   type TrackingContext,
   type TrackingContextResponse,
 } from '../messages';
+import { createEventId, createSessionId } from '../tracking/identifiers';
 import { ReadingSessionTracker, type TrackingEvent } from '../tracking/reading-session-tracker';
 
 const INTERACTION_IDLE_TIMEOUT_MS = 30_000;
@@ -33,7 +34,7 @@ async function runExtraction(): Promise<void> {
 
   void sendMessage({ type: 'ARTICLE_EXTRACTED', payload: article }).catch(() => undefined);
   const trackingContext = await requestTrackingContext();
-  const sessionId = crypto.randomUUID();
+  const sessionId = createSessionId();
   tracker = new ReadingSessionTracker(
     (event) => emitReadingEvent(event, article, trackingContext, sessionId),
     INTERACTION_IDLE_TIMEOUT_MS,
@@ -72,7 +73,7 @@ function emitReadingEvent(
   sessionId: string,
 ): void {
   const payload: ReadingEventPayload = {
-    eventId: crypto.randomUUID(),
+    eventId: createEventId(),
     eventType: event.eventType,
     sessionId,
     sequenceNumber: event.sequenceNumber,
